@@ -1,0 +1,9 @@
+database:
+  dbname: "dev"
+
+tardis:
+  key: "TD.hOn9kXOjKbACYt-q.NfEtMsCP5Y2iHuj.NdgZPfqztUWAdmK.5YTR92U0O21IN9l.IgMDcxfWG9hWezZ.-BuF"
+  
+data:
+  data_dir: "/data/crypto/tardis"
+  symbols: ["DOGEUSDT"]

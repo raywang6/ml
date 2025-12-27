@@ -1,0 +1,9 @@
+# Data files
+*.parquet
+*.pkl
+*.pickle
+*.log
+*.csv
+*.txt
+*.pyc
+*.png

@@ -1,0 +1,19 @@
+training:
+  min_datasize_thres: 120000
+  overlap_buff: 800
+  feature_size: -1
+  class_size: 3
+  max_hp_evals: 50
+  name: "GRU"
+  embedding_size: 128
+  learning_rate: 0.001
+  patience: 5
+  hyperparameters:
+    dropout:
+      type: uniform
+      min: 0.0
+      max: 0.5
+    l2_lambda: 
+      type: loguniform
+      min: 1e-5
+      max: 1e-2
