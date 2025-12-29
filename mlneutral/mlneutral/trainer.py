@@ -1,7 +1,7 @@
 
 import polars as pl
 from .types import Dict, List, ModelType, ParamType, PathType, Callable
-from hyperopt import tpe, hp, fmin, STATUS_OK, space_eval
+from hyperopt import tpe, hp, fmin, STATUS_OK, space_eval, pyll
 import joblib
 import gc
 import numpy as np
@@ -48,7 +48,6 @@ def translate_hpspace(config):
     
     return hpspace
 
-
 def train_classifier(
         training_set: pl.DataFrame,
         target: str,
@@ -58,7 +57,7 @@ def train_classifier(
         save_path: PathType,
         config: Dict,
         name: str = '',
-        use_sw = True,
+        use_sw: bool = True,
         no_early_stop_before: int = 10
     ):
     buff = config['training']['overlap_buff']
@@ -66,93 +65,115 @@ def train_classifier(
         pl.col(i).fill_nan(None).fill_null(0.0).alias(i) for i in features
     )
     training_set = training_set.fill_nan(None).drop_nulls(target)
-    X_ = training_set.select(features).to_numpy()[:-buff]
-    y_ = training_set.select(target).to_numpy()[:-buff]
-    N = len(X_)
-    if use_sw:
-        sw_ = training_set.select(f"sw_{target}").to_numpy()[:-buff]
+    
+    # Get unique sorted dates for proper time-series splitting
+    unique_dates = training_set.select('datetime').unique().sort('datetime')['datetime'].to_list()
+    n_dates = len(unique_dates)
+    
+    if n_dates < 20:  # Need minimum dates for train/valid splits
+        raise ValueError(f"Insufficient unique dates: {n_dates}")
+    
+    # Calculate date indices for splits
+    min_valid_dates = max(5, n_dates // 6)  # At least 5 dates per validation fold
+    
+    if n_dates >= config['training']['min_datasize_thres'] // 100:  # Rough scaling
+        n_train_dates = n_dates - 6 * min_valid_dates  # Reserve space for 6 validation folds
     else:
-        sw_ = None
-    # split dataset
-    if N >= config['training']['min_datasize_thres']:
-        ntrain = int(N - config['training']['min_datasize_thres']/2)
-        nvalid = int(config['training']['min_datasize_thres'] / 12)
-    else:
-        ntrain = int(N / 2)
-        nvalid = int(N / 12)
-    hpspace = translate_hpspace(config)#{hpname: hp.choice(hpname, hplist) for hpname, hplist in config['training']['hyperparameters'].items()}
+        n_train_dates = n_dates // 2
+        min_valid_dates = n_dates // 6
+    
+    hpspace = translate_hpspace(config)
+    
     def objective(hpcomb):
-        params.update(hpcomb) 
+        params.update(hpcomb)
         scores = []
         print(f"[trial]: {params}")
-        for idvalid in range(1,6):
-            train_X = X_[:ntrain+nvalid*idvalid - buff]
-            train_y = y_[:ntrain+nvalid*idvalid - buff]
-            valid_X = X_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
-            valid_y = y_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
-            # batch_size
-            #params['batch_size'] = compute_batchsize(train_X)
-            model = modelClass(**params) 
+        
+        for idvalid in range(1, 3):
+            # Calculate date cutoffs
+            train_end_idx = n_train_dates + min_valid_dates * idvalid - buff
+            valid_start_idx = n_train_dates + min_valid_dates * idvalid
+            valid_end_idx = n_train_dates + min_valid_dates * (idvalid + 1)
+            
+            train_end_date = unique_dates[train_end_idx]
+            valid_start_date = unique_dates[valid_start_idx]
+            valid_end_date = unique_dates[min(valid_end_idx, n_dates - 1)]
+            
+            # Split by datetime, not index
+            train_data = training_set.filter(pl.col('datetime') < train_end_date)
+            valid_data = training_set.filter(
+                (pl.col('datetime') >= valid_start_date) & 
+                (pl.col('datetime') < valid_end_date)
+            )
+            
+            train_X = train_data.select(features).to_numpy()
+            train_y = train_data.select(target).to_numpy()
+            valid_X = valid_data.select(features).to_numpy()
+            valid_y = valid_data.select(target).to_numpy()
+            
+            model = modelClass(**params)
+            
             if use_sw:
-                sw = sw_[:ntrain+nvalid*idvalid - buff] # should i store the sw?
+                sw = train_data.select(f"sw_{target}").to_numpy()
             else:
                 sw = None
-            #
-            model.fit(train_X, train_y, validation_data = (valid_X, valid_y), sample_weight = sw)   
+            
+            model.fit(train_X, train_y, validation_data=(valid_X, valid_y), sample_weight=sw)
             score, acc = model.evaluate(valid_X, valid_y)
-            # early stop
+            
             if idvalid >= 4 and model.model_namecard['epoch'] < no_early_stop_before:
                 acc += 10
             scores.append(acc)
             del model
             gc.collect()
-        output_loss = (0.0625*scores[0] + 0.0625 * scores[1] + 0.125*scores[2]+ 0.25*scores[3] + 0.5*scores[4])
+        
+        output_loss = 0.0625*scores[0] + 0.0625*scores[1] + 0.125*scores[2] + 0.25*scores[3] + 0.5*scores[4]
         print(f"[trial] {np.mean(scores)}")
-        # Hyperopt expects a dictionary with a "loss" key and "status"
-        return {
-            'loss': output_loss,
-            'status': STATUS_OK,
-            'score_list': scores
-        }
-    bestidx = fmin(
-        fn=objective,        
-        space=hpspace,        
-        algo=tpe.suggest,
-        max_evals=config['training']['max_hp_evals'],         # How many trials to run (each trial is one combination)
-        #trials=trials
-    )
-    best = space_eval(hpspace, bestidx)
+        return {'loss': output_loss, 'status': STATUS_OK, 'score_list': scores}
+
+    max_evals = config['training']['max_hp_evals']
+
+    if max_evals > 1:
+        bestidx = fmin(
+            fn=objective,
+            space=hpspace,
+            algo=tpe.suggest,
+            max_evals=max_evals,
+        )
+        best = space_eval(hpspace, bestidx)
+    else:
+        # Single eval: sample one point and run objective directly
+        best = pyll.stochastic.sample(hpspace)
+        objective(best) 
+
     print(f"[param]: {save_path}: {best}")
     params.update(best)
-    # train predict1
-    idvalid = 4
-    train_X = X_[:ntrain+nvalid*idvalid - buff]
-    train_y = y_[:ntrain+nvalid*idvalid - buff]
-    valid_X = X_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
-    valid_y = y_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
-    #params['batch_size'] = compute_batchsize(train_X)
-    model1 = modelClass(**params) 
-    if use_sw:
-        sw = sw_[:ntrain+nvalid*idvalid - buff] # should i store the sw?
-    else:
-        sw = None
-    model1.fit(train_X, train_y, validation_data = (valid_X, valid_y), sample_weight = sw)    
-    model1.save(os.path.join(save_path, '_'.join([name,target,'_1'])))
-    # train predict2
-    idvalid = 5
-    train_X = X_[:ntrain+nvalid*idvalid - buff]
-    train_y = y_[:ntrain+nvalid*idvalid - buff]
-    valid_X = X_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
-    valid_y = y_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
-    #params['batch_size'] = compute_batchsize(train_X)
-    model2 = modelClass(**params) 
-    if use_sw:
-        sw = sw_[:ntrain+nvalid*idvalid - buff] # should i store the sw?
-    else:
-        sw = None
-    model2.fit(train_X, train_y, validation_data = (valid_X, valid_y), sample_weight = sw)
-    model2.save(os.path.join(save_path, '_'.join([name,target,'_2'])))
     
+    # Train final models with date-based splits
+    for model_id, idvalid in enumerate([4, 5], start=1):
+        train_end_idx = n_train_dates + min_valid_dates * idvalid - buff
+        valid_start_idx = n_train_dates + min_valid_dates * idvalid
+        valid_end_idx = n_train_dates + min_valid_dates * (idvalid + 1)
+        
+        train_end_date = unique_dates[train_end_idx]
+        valid_start_date = unique_dates[valid_start_idx]
+        valid_end_date = unique_dates[min(valid_end_idx, n_dates - 1)]
+        
+        train_data = training_set.filter(pl.col('datetime') < train_end_date)
+        valid_data = training_set.filter(
+            (pl.col('datetime') >= valid_start_date) & 
+            (pl.col('datetime') < valid_end_date)
+        )
+        
+        train_X = train_data.select(features).to_numpy()
+        train_y = train_data.select(target).to_numpy()
+        valid_X = valid_data.select(features).to_numpy()
+        valid_y = valid_data.select(target).to_numpy()
+        
+        model = modelClass(**params)
+        sw = train_data.select(f"sw_{target}").to_numpy() if use_sw else None
+        model.fit(train_X, train_y, validation_data=(valid_X, valid_y), sample_weight=sw)
+        model.save(os.path.join(save_path, f'{name}_{target}__{model_id}'))
 
 def train_classifier_simple(
         training_set: pl.DataFrame,
@@ -198,7 +219,7 @@ def train_classifier_simple(
     train_y = y_[:ntrain+nvalid*idvalid - buff]
     valid_X = X_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
     valid_y = y_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
-    params['batch_size'] = compute_batchsize(train_X)
+    #params['batch_size'] = compute_batchsize(train_X)
     model1 = modelClass(**params) 
     if use_sw:
         sw = sw_[:ntrain+nvalid*idvalid - buff] # should i store the sw?
@@ -220,7 +241,7 @@ def train_classifier_simple(
     train_y = y_[:ntrain+nvalid*idvalid - buff]
     valid_X = X_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
     valid_y = y_[ntrain+nvalid*idvalid:ntrain+nvalid*(idvalid+1)]
-    params['batch_size'] = batch_size#compute_batchsize(train_X)
+    #params['batch_size'] = batch_size#compute_batchsize(train_X)
     model2 = modelClass(**params) 
     if use_sw:
         sw = sw_[:ntrain+nvalid*idvalid - buff] # should i store the sw?

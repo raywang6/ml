@@ -54,6 +54,7 @@ class WalkForwardTest:
         target_col: str = None,
         train_config_path: str = 'mlneutral/train_config.yaml',
         output_dir: str = 'walkforward_results',
+        target_func: str = 'ret',
         delta_month: int = 3,
         anti_leaking_days = 1
     ):
@@ -65,6 +66,11 @@ class WalkForwardTest:
         self.target_col = target_col
         self.delta_month = delta_month
         self.antileaking_buff = anti_leaking_days
+
+        if target_func == 'ret':
+            self._load_target = self._load_target2
+        else:
+            self._load_target = self._load_target1
 
         ## Load data
         #print(f"Loading data from {data_path}...")
@@ -140,22 +146,22 @@ class WalkForwardTest:
         res = res.to_pandas().set_index('datetime')
         self.returns = res.pct_change()
 
-    def _load_target(self, symbols):
+    def _load_target1(self, symbols):
         ret = self.returns.loc[:, symbols]
         tar = ret.rolling(self.horizon).sum().shift(-self.horizon)
         tar = tar.subtract(tar.mean(axis=1),axis=0)
         tar = tar.div(tar.abs().sum(axis=1),axis=0)
         scalevol = (tar.shift(1) * ret.reindex_like(tar)).sum(axis=1).ewm(168,min_periods = 72).std()
-        tar = (tar * 0.15/80).div( scalevol,axis=0).clip(-0.15,0.15)
+        tar = (tar * 0.15/80).div( scalevol,axis=0).clip(-0.1,0.1)
         tar = pl.from_pandas(
             tar.reset_index().melt(id_vars="datetime", var_name="symbol", value_name=self.target_col)
         )
         return tar
 
-    def _load_target1(self, symbols):
+    def _load_target2(self, symbols):
         ret = self.returns.loc[:, symbols]
         tar = ret.rolling(self.horizon).sum().shift(-self.horizon)
-        tar = tar.subtract(tar.median(axis=1),axis=0).clip(-0.5,0.5)
+        tar = tar.clip(-0.5,0.5) #tar.subtract(tar.median(axis=1),axis=0).clip(-0.5,0.5)
         tar = pl.from_pandas(
             tar.reset_index().melt(id_vars="datetime", var_name="symbol", value_name=self.target_col)
         )
@@ -257,7 +263,7 @@ class WalkForwardTest:
         selected_data = feature_selection_2step(
             train_data, self.features, self.target_col,
             corr_drop_threshold=0.8,
-            corr_merge_threshold=0.6,
+            corr_merge_threshold=0.99,
             save_grouping=True,
             outputfolder=feature_dir
         )
@@ -276,15 +282,16 @@ class WalkForwardTest:
 
         # Prepare model
         lgbm_model, params = prepare_lgbm()
-        params['learning_rate'] = 5e-2
-        params['early_stopping_rounds'] = 10
-        params['subsample'] = 0.8
-        params['max_depth'] = -1
+        params['learning_rate'] = 1e-2
+        params['early_stopping_rounds'] = 50
+        #params['subsample'] = 0.8
+        #params['max_depth'] = 12
         params['bagging_freq'] = 5
         params['bagging_fraction'] = 0.8
         params['feature_fraction'] = 0.8
-        params['reg_lambda'] = 0.
-        params['min_data_in_leaf'] = 500
+        #params['reg_lambda'] = 0
+        #params['reg_alpha'] = 0
+        #params['min_data_in_leaf'] = 500
 
         # Update config
         self.train_config['training']['max_hp_evals'] = max_hp_evals

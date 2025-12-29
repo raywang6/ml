@@ -6,7 +6,6 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 
 
-
 def prepare_lgbm():
     """
     Prepare LightGBM model class and default parameters.
@@ -15,17 +14,17 @@ def prepare_lgbm():
         Tuple of (model_class, default_params)
     """
     standard_params = {
-        'n_estimators': 1000,
+        'n_estimators': 10000,
         'boosting_type': 'gbdt',
-        'num_leaves': 256,  # Increased for better expressiveness
+        #'num_leaves': 256,  # Increased for better expressiveness
         'random_state': 61,
-        'max_depth': 12,
-        'reg_lambda': 0.,
+        #'max_depth': 12,
+        #'reg_lambda': 0.,
         #'reg_alpha': 0.,  # Added L1 regularization
-        'early_stopping_rounds': 20,
-        #'subsample': 0.66,  # Use subsample instead of bagging_fraction
-        'subsample_freq': 5,  # Renamed from bagging_freq
-        'colsample_bytree': 0.8,  # Feature sampling
+        #'early_stopping_rounds': 20,
+        #'subsample': 0.8,  # Use subsample instead of bagging_fraction
+        #'subsample_freq': 5,  # Renamed from bagging_freq
+        #'colsample_bytree': 0.8,  # Feature sampling
         #'min_child_samples': 20,  # Prevent overfitting
     }
     return LGBMRegressor, standard_params

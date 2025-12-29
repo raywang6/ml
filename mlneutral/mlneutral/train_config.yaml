@@ -2,13 +2,15 @@ training:
   min_datasize_thres: 600000
   overlap_buff: 1500
   feature_size: -1
+  class_size: 3
   max_hp_evals: 50
   name: "LGBM"
+  embedding_size: 128
   learning_rate: 0.001
-  bagging_fraction: 0.8
-  feature_fraction: 0.8
+  min_data_in_leaf: 1000
   hyperparameters:
     num_leaves:
       type: randint
-      min: 50
-      max: 200
+      min: 120
+      max: 150
+

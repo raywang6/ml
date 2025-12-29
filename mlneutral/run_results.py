@@ -21,7 +21,7 @@ def csr(comb):
 #
 
 preds = []
-for ifile in glob.glob('/home/moneyking/projects/mlframework/mlneutral/walkforward_results_weight_lr5e-2_early20/predictions/pred_*.parquet'):
+for ifile in glob.glob('/home/moneyking/projects/mlframework/mlneutral/walkforward_results_weight_lr5e-2_early50_24/predictions/pred_*.parquet'):
     tmp = pl.read_parquet(ifile).select(['datetime','symbol','prediction1','prediction2','prediction'])
     preds.append(tmp)
 #%%
