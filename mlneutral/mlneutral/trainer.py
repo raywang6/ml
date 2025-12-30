@@ -74,13 +74,13 @@ def train_classifier(
         raise ValueError(f"Insufficient unique dates: {n_dates}")
     
     # Calculate date indices for splits
-    min_valid_dates = max(5, n_dates // 6)  # At least 5 dates per validation fold
+    min_valid_dates = max(5, n_dates // 8)  # At least 5 dates per validation fold
     
-    if n_dates >= config['training']['min_datasize_thres'] // 100:  # Rough scaling
-        n_train_dates = n_dates - 6 * min_valid_dates  # Reserve space for 6 validation folds
+    if n_dates >= config['training']['min_datasize_thres']:  # Rough scaling
+        n_train_dates = n_dates - 4 * min_valid_dates  # Reserve space for 6 validation folds
     else:
         n_train_dates = n_dates // 2
-        min_valid_dates = n_dates // 6
+        min_valid_dates = n_dates // 8
     
     hpspace = translate_hpspace(config)
     
@@ -89,7 +89,7 @@ def train_classifier(
         scores = []
         print(f"[trial]: {params}")
         
-        for idvalid in range(1, 3):
+        for idvalid in range(1, 4):
             # Calculate date cutoffs
             train_end_idx = n_train_dates + min_valid_dates * idvalid - buff
             valid_start_idx = n_train_dates + min_valid_dates * idvalid
@@ -121,13 +121,13 @@ def train_classifier(
             model.fit(train_X, train_y, validation_data=(valid_X, valid_y), sample_weight=sw)
             score, acc = model.evaluate(valid_X, valid_y)
             
-            if idvalid >= 4 and model.model_namecard['epoch'] < no_early_stop_before:
+            if idvalid >= 2 and model.model_namecard['epoch'] < no_early_stop_before:
                 acc += 10
             scores.append(acc)
             del model
             gc.collect()
         
-        output_loss = 0.0625*scores[0] + 0.0625*scores[1] + 0.125*scores[2] + 0.25*scores[3] + 0.5*scores[4]
+        output_loss = 0.2*scores[0] + 0.3*scores[1] + 0.5*scores[2]
         print(f"[trial] {np.mean(scores)}")
         return {'loss': output_loss, 'status': STATUS_OK, 'score_list': scores}
 
@@ -150,7 +150,7 @@ def train_classifier(
     params.update(best)
     
     # Train final models with date-based splits
-    for model_id, idvalid in enumerate([4, 5], start=1):
+    for model_id, idvalid in enumerate([2, 3], start=1):
         train_end_idx = n_train_dates + min_valid_dates * idvalid - buff
         valid_start_idx = n_train_dates + min_valid_dates * idvalid
         valid_end_idx = n_train_dates + min_valid_dates * (idvalid + 1)

@@ -1,6 +1,6 @@
 training:
-  min_datasize_thres: 600000
-  overlap_buff: 1500
+  min_datasize_thres: 600
+  overlap_buff: 75
   feature_size: -1
   class_size: 3
   max_hp_evals: 50

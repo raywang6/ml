@@ -14,7 +14,7 @@ def prepare_lgbm():
         Tuple of (model_class, default_params)
     """
     standard_params = {
-        'n_estimators': 10000,
+        'n_estimators': 500,
         'boosting_type': 'gbdt',
         #'num_leaves': 256,  # Increased for better expressiveness
         'random_state': 61,

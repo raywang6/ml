@@ -161,7 +161,7 @@ class WalkForwardTest:
     def _load_target2(self, symbols):
         ret = self.returns.loc[:, symbols]
         tar = ret.rolling(self.horizon).sum().shift(-self.horizon)
-        tar = tar.clip(-0.5,0.5) #tar.subtract(tar.median(axis=1),axis=0).clip(-0.5,0.5)
+        tar = tar.subtract(tar.median(axis=1),axis=0).clip(-0.5,0.5)
         tar = pl.from_pandas(
             tar.reset_index().melt(id_vars="datetime", var_name="symbol", value_name=self.target_col)
         )
@@ -291,7 +291,8 @@ class WalkForwardTest:
         params['feature_fraction'] = 0.8
         #params['reg_lambda'] = 0
         #params['reg_alpha'] = 0
-        #params['min_data_in_leaf'] = 500
+        params['min_data_in_leaf'] = 5000
+        params['num_boost_round'] = 500
 
         # Update config
         self.train_config['training']['max_hp_evals'] = max_hp_evals
