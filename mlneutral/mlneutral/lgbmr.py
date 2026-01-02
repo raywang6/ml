@@ -175,12 +175,12 @@ class LGBMRegressor(object):
         
         # --- POTENTIAL ERROR/IMPROVEMENT 2: Set feval in init if using custom objective ---
         self.feval = None # Initialize feval to None
-        if add_sign_penalty:
-            self._params['objective'] = sign_sensitive_objective
-            self.feval = sign_sensitive_eval # Assign the custom eval function here
-            # When using a custom objective, it's often good practice to set 'metric' to 'None'
-            # in params to avoid LightGBM trying to compute a default metric if your custom feval handles it.
-            self._params['metric'] = 'None' # Or choose an appropriate built-in metric if desired alongside your feval
+        #if add_sign_penalty:
+        #    self._params['objective'] = sign_sensitive_objective
+        #    self.feval = sign_sensitive_eval # Assign the custom eval function here
+        #    # When using a custom objective, it's often good practice to set 'metric' to 'None'
+        #    # in params to avoid LightGBM trying to compute a default metric if your custom feval handles it.
+        #    self._params['metric'] = 'None' # Or choose an appropriate built-in metric if desired alongside your feval
 
         self._booster = None
         self.model_namecard = {}
@@ -191,25 +191,40 @@ class LGBMRegressor(object):
         """
         # If custom objective or eval metric provided, use lgb.train
         if self.add_sign_penalty:
-            train_set = lgb.Dataset(X, label=y, weight=sample_weight)
+            train_set = lgb.Dataset(X, label=y, weight=sample_weight, free_raw_data=False)
             
             # --- POTENTIAL ERROR/IMPROVEMENT 3: Handling validation_data for lgb.train ---
             valid_sets = []
             valid_names = []
             if validation_data is not None:
                 X_val, y_val = validation_data
-                valid_sets.append(lgb.Dataset(X_val, label=y_val))
+                valid_sets.append(lgb.Dataset(X_val, label=y_val, free_raw_data=False))
                 valid_names.append('valid') # The name for the validation set
             print(f"[debug!]: {self._params}")
+            init_params = self._params.copy()
+            init_params['learning_rate'] = init_params['learning_rate'] * 5
+            warmup_booster = lgb.train(
+                init_params,
+                train_set,
+                num_boost_round=3,
+                valid_sets=valid_sets,
+                valid_names=valid_names,
+                # Remove early_stopping_callback here so it cannot stop
+                callbacks=[lgb.log_evaluation(period=3)] 
+            )
+
+            # --- Step 2: Main Training (Resume with Early Stopping) ---
             self._booster = lgb.train(
                 self._params,
                 train_set,
-                num_boost_round=self._params['n_estimators'], # Correctly maps n_estimators to num_boost_round
-                valid_sets=valid_sets, # Pass the list directly. If empty, lgb.train handles it.
-                valid_names=valid_names, # Pass the list directly.
-                feval=self.feval if self.add_sign_penalty else None, # Pass feval only if custom objective is used
-                # verbose_eval=False, # Use callback for verbose eval instead of this direct parameter
-                callbacks=[self.early_stopping_callback, lgb.log_evaluation(period=10),]
+                # Subtract the 5 rounds we already did
+                num_boost_round=self._params['n_estimators'], 
+                valid_sets=valid_sets,
+                valid_names=valid_names,
+                # KEY: This loads the trees from Step 1 so we don't start from scratch
+                init_model=warmup_booster, 
+                # Now we add the early stopper back in
+                callbacks=[self.early_stopping_callback, lgb.log_evaluation(period=10)]
             )
             # After training, it's good practice to set best_iteration for prediction
             # This is automatically handled if early stopping occurs.

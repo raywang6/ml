@@ -2,6 +2,7 @@ import polars as pl
 import pandas as pd
 import numpy as np
 import glob
+import sys
 import matplotlib.pyplot as plt
 from parquet_reader import parallel_read_parquets
 
@@ -19,9 +20,9 @@ def csr(comb):
     return round(comb.mean()/comb.std() * np.sqrt(365*24),2)
 
 #
-
+name = sys.argv[1]
 preds = []
-for ifile in glob.glob('/home/moneyking/projects/mlframework/mlneutral/walkforward_results_weight_lr5e-2_early50_24/predictions/pred_*.parquet'):
+for ifile in glob.glob(f'/home/moneyking/projects/mlframework/mlneutral/{name}/predictions/pred_*.parquet'):
     tmp = pl.read_parquet(ifile).select(['datetime','symbol','prediction1','prediction2','prediction'])
     preds.append(tmp)
 #%%
@@ -94,7 +95,7 @@ f'sth {csr(zsmt)}': zsmt}
 fig,ax=plt.subplots()
 plt_df.cumsum().plot(ax=ax, alpha = 0.5)
 plt_df[f'sth {csr(zsmt)}'].cumsum().plot(ax=ax, alpha = 1)
-fig.savefig("simple.png")
+fig.savefig(f"plot/{name}_simple.png")
 
 #%% rank
 ns1 = sgl1.rank(axis=1,pct=True)
@@ -142,7 +143,7 @@ plt_df = pd.DataFrame({f'm1 {csr(z1)}': z1, f'm2 {csr(z2)}': z2, f'mc {csr(comb)
 
 fig,ax=plt.subplots()
 plt_df.cumsum().plot(ax=ax)
-fig.savefig("rank.png")
+fig.savefig(f"plot/{name}_rank.png")
 
 
 #%% complex
@@ -180,4 +181,4 @@ plt_df = pd.DataFrame({f'm1 {csr(z1)}': z1, f'm2 {csr(z2)}': z2, f'mc {csr(comb)
 
 fig,ax=plt.subplots()
 plt_df.cumsum().plot(ax=ax)
-fig.savefig("softmax.png")
+fig.savefig(f"plot/{name}_softmax.png")

@@ -282,8 +282,9 @@ class WalkForwardTest:
 
         # Prepare model
         lgbm_model, params = prepare_lgbm()
-        params['learning_rate'] = 1e-2
+        params['learning_rate'] = 5e-3
         params['early_stopping_rounds'] = 50
+        #params['num_leaves'] = 64
         #params['subsample'] = 0.8
         #params['max_depth'] = 12
         params['bagging_freq'] = 5
@@ -291,8 +292,10 @@ class WalkForwardTest:
         params['feature_fraction'] = 0.8
         #params['reg_lambda'] = 0
         #params['reg_alpha'] = 0
-        params['min_data_in_leaf'] = 5000
+        params['min_data_in_leaf'] = 1000
         params['num_boost_round'] = 500
+        #params['add_sign_penalty'] = False
+        #params['max_bin'] = 30
 
         # Update config
         self.train_config['training']['max_hp_evals'] = max_hp_evals

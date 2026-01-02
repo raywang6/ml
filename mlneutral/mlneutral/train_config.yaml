@@ -7,10 +7,8 @@ training:
   name: "LGBM"
   embedding_size: 128
   learning_rate: 0.001
-  min_data_in_leaf: 1000
   hyperparameters:
     num_leaves:
-      type: randint
-      min: 120
-      max: 150
+      type: choice
+      options: [31, 63, 127]
 
