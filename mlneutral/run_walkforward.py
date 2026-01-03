@@ -22,8 +22,8 @@ CONFIG = {
 
     # Walk-forward parameters
     'start_date': '2023-06-01',    # First training cutoff (YYYY-MM-DD)
-    'end_date': '2025-06-01',      # Last training cutoff (YYYY-MM-DD)
-    'train_day': 15,               # Day of month for cutoffs
+    'end_date': '2025-10-20',      # Last training cutoff (YYYY-MM-DD)
+    'train_day': 1,               # Day of month for cutoffs
 
     # Model parameters
     'horizon': 24,                  # Prediction horizon (in data periods)
@@ -83,7 +83,7 @@ def run():
     for hori in [12, 24, 48]:
         CONFIG['horizon'] = hori
         CONFIG['target_col'] = f'target{hori}'
-        CONFIG['output_dir'] = f'walkforward_results_weight_warmllr_{hori}'
+        CONFIG['output_dir'] = f'walkforward_results_weight_prod_{hori}'
         # Initialize
         wf = WalkForwardTest(
             data_config = DATA_CONFIG,

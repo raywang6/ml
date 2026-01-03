@@ -161,7 +161,7 @@ class WalkForwardTest:
     def _load_target2(self, symbols):
         ret = self.returns.loc[:, symbols]
         tar = ret.rolling(self.horizon).sum().shift(-self.horizon)
-        tar = tar.subtract(tar.median(axis=1),axis=0).clip(-0.5,0.5)
+        tar = tar.clip(-0.5,0.5)#.subtract(tar.median(axis=1),axis=0).clip(-0.5,0.5)
         tar = pl.from_pandas(
             tar.reset_index().melt(id_vars="datetime", var_name="symbol", value_name=self.target_col)
         )
