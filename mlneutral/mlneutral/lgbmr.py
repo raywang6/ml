@@ -202,15 +202,15 @@ class LGBMRegressor(object):
                 valid_names.append('valid') # The name for the validation set
             print(f"[debug!]: {self._params}")
             init_params = self._params.copy()
-            init_params['learning_rate'] = init_params['learning_rate'] * 5
+            init_params['learning_rate'] = init_params['learning_rate']# * 5
             warmup_booster = lgb.train(
                 init_params,
                 train_set,
-                num_boost_round=3,
+                num_boost_round=5,
                 valid_sets=valid_sets,
                 valid_names=valid_names,
                 # Remove early_stopping_callback here so it cannot stop
-                callbacks=[lgb.log_evaluation(period=3)] 
+                callbacks=[lgb.log_evaluation(period=5)] 
             )
 
             # --- Step 2: Main Training (Resume with Early Stopping) ---

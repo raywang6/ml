@@ -28,13 +28,13 @@ CONFIG = {
     # Model parameters
     'horizon': 24,                  # Prediction horizon (in data periods)
     'target_col': 'target24',        # Target column name
-    'target_func': 'weight',
+    'target_func': 'ret',
 
     # Training parameters
-    'max_hp_evals': 3,            # HP optimization iterations per period
+    'max_hp_evals': 1,            # HP optimization iterations per period
     'min_train_months': 6,         # Minimum months of data to start training
 
-    'delta_month': 1,
+    'delta_month': 3,
     # Output
     'output_dir': 'walkforward_results_weight_early50_24',
 
@@ -83,7 +83,7 @@ def run():
     for hori in [12, 24, 48]:
         CONFIG['horizon'] = hori
         CONFIG['target_col'] = f'target{hori}'
-        CONFIG['output_dir'] = f'walkforward_results_weight_prod_{hori}'
+        CONFIG['output_dir'] = f'walkforward_results_ret_prod_{hori}'
         # Initialize
         wf = WalkForwardTest(
             data_config = DATA_CONFIG,

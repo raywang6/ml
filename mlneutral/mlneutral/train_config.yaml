@@ -10,5 +10,5 @@ training:
   hyperparameters:
     num_leaves:
       type: choice
-      options: [31, 63, 127]
+      options: [127]
 
