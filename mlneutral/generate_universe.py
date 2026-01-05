@@ -108,12 +108,12 @@ if __name__ == "__main__":
     print(rdf)
     print()
     """
-    import numpy as np
-    import pandas as pd
-    a = pd.read_parquet("data/universe.parquet")
-    a['filter'] = np.logical_and(a['median_quote'] > 1e7, a['median_oi'] > 1e7)
-    filters = pd.pivot_table(a, index='month', columns='symbol', values='filter').fillna(0)
-    filters.index = filters.index.end_time
-    filters.to_parquet("data/filters.parquet")
+import numpy as np
+import pandas as pd
+a = pd.read_parquet("data/universe.parquet")
+a['filter'] = np.logical_and(a['median_quote'] > 5e6, a['median_oi'] > 1e7)
+filters = pd.pivot_table(a, index='month', columns='symbol', values='filter').fillna(0)
+filters.index = filters.index.end_time
+filters.to_parquet("data/filters.parquet")
 
     """

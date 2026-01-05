@@ -21,7 +21,7 @@ from typing import List, Dict, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
-from mlneutral.feature_engineer1 import (
+from mlneutral.feature_engineer2 import (
     transformFT,
     feature_selection_2step,
     process_test_data,
@@ -250,7 +250,7 @@ class WalkForwardTest:
         # Transform features
         train_data, _ = transformFT(
             train_data, pl.DataFrame(), self.features,
-            save_ecdf=True, outputfolder=feature_dir
+            save_scaler = True, outputfolder=feature_dir
         )
         print("Info: Complete transform features.")
 
@@ -365,10 +365,9 @@ class WalkForwardTest:
             test_data,
             all_features,
             select_features,
-            ecdf_folder=feature_dir,
             feature_mapping_file=f'{feature_dir}/feature_mapping.pkl',
-            scaler_file=os.path.join(feature_dir, 'X_scaler'),
-            outputfolder=feature_dir
+            scaler_file=os.path.join(feature_dir, 'X_scaler.pkl'),
+            feature_info_file = f'{feature_dir}/feature_info.pkl'
         )
         print(f"Info: test data for {len(test_data['symbol'].unique())} symbols.")
         test_data = test_data.sort('datetime').drop_nulls(self.target_col)
