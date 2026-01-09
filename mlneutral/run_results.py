@@ -43,11 +43,15 @@ res = res.select(['datetime', 'symbol', 'close']).pivot(
         values="close"
 ).sort('datetime')
 ret = res.to_pandas().set_index('datetime').pct_change()
-
+filters = pd.read_parquet("data/filters_trd.parquet")
+filters = pd.concat([filters, pd.DataFrame(index=ret.index,columns=ret.columns)]).sort_index()
+filters = filters.ffill().fillna(0).reindex_like(ret)
 #%%
 sgl1 = pd.pivot_table(preds, index = 'datetime', columns = 'symbol', values = 'prediction1')
 sgl2 = pd.pivot_table(preds, index = 'datetime', columns = 'symbol', values = 'prediction2')
 
+sgl1 = sgl1.mask(filters == 0, np.nan)
+sgl2 = sgl2.mask(filters == 0, np.nan)
 #%%
 vwindow = 1
 #%% simple
@@ -182,3 +186,58 @@ plt_df = pd.DataFrame({f'm1 {csr(z1)}': z1, f'm2 {csr(z2)}': z2, f'mc {csr(comb)
 fig,ax=plt.subplots()
 plt_df.cumsum().plot(ax=ax)
 fig.savefig(f"plot/{name}_softmax.png")
+
+
+"""
+import os, glob
+
+res = [] # pd.DataFrame(columns = ["sr", "lr", "nleaves", "npoch", "mse", "date"])
+horizon = int(name.split("_")[-1])
+fs = glob.glob(f"/home/moneyking/projects/mlframework/mlneutral/{name}/models/*")
+for ifolder in fs:
+    ddt = os.path.basename(ifolder).split('_')[-1]
+    pred = pd.read_parquet(os.path.join(f"/home/moneyking/projects/mlframework/mlneutral/{name}/predictions/pred_{ddt}.parquet"))
+    sgl1 = pd.pivot_table(pred, index = 'datetime', columns = 'symbol', values = 'prediction1')
+    ns1 = sgl1.subtract(sgl1.mean(axis=1),axis=0)
+    ns1 = ns1.div(ns1.abs().sum(axis=1),axis=0)
+    z1 = (ns1.shift() * ret).sum(axis = 1).loc[ns1.index]
+    ns1 = ns1.div(np.sqrt(365*24)*z1.ewm(168*vwindow).std()/0.15,axis=0)
+    z1 = (ns1.shift() * ret).sum(axis = 1).loc[ns1.index]
+    sgl1 = pd.pivot_table(pred, index = 'datetime', columns = 'symbol', values = 'prediction2')
+    ns1 = sgl1.subtract(sgl1.mean(axis=1),axis=0)
+    ns1 = ns1.div(ns1.abs().sum(axis=1),axis=0)
+    z2 = (ns1.shift() * ret).sum(axis = 1).loc[ns1.index]
+    ns1 = ns1.div(np.sqrt(365*24)*z2.ewm(168*vwindow).std()/0.15,axis=0)
+    z2 = (ns1.shift() * ret).sum(axis = 1).loc[ns1.index]
+    ncard1 = pd.read_pickle(os.path.join(ifolder, f"wf_{ddt}_target{horizon}__1_namecard"))
+    ncard2 = pd.read_pickle(os.path.join(ifolder, f"wf_{ddt}_target{horizon}__2_namecard"))
+    nparam1 = pd.read_pickle(os.path.join(ifolder, f"wf_{ddt}_target{horizon}__1_lgbmparams.pkl"))
+    nparam2 = pd.read_pickle(os.path.join(ifolder, f"wf_{ddt}_target{horizon}__2_lgbmparams.pkl"))
+    res.append(
+        {
+            "sr": z1.mean()/z1.std() * 90,
+            "lr": nparam1['params']['learning_rate'],
+            "nleaves": nparam1['params']['num_leaves'],
+            "npoch": ncard1['epoch'],
+            "mse": ncard1['acc_validate']['valid']['l2'],
+            "date": ddt,
+            "model": 1
+        }
+    )
+    res.append(
+        {
+            "sr": z2.mean()/z2.std() * 90,
+            "lr": nparam2['params']['learning_rate'],
+            "nleaves": nparam2['params']['num_leaves'],
+            "npoch": ncard2['epoch'],
+            "mse": ncard2['acc_validate']['valid']['l2'],
+            "date": ddt,
+            "model": 2
+        }
+    )
+
+
+res = pd.DataFrame(res)
+    
+    
+"""

@@ -28,7 +28,7 @@ CONFIG = {
     # Model parameters
     'horizon': 24,                  # Prediction horizon (in data periods)
     'target_col': 'target24',        # Target column name
-    'target_func': 'ret',
+    'target_func': 'zscore',
 
     # Training parameters
     'max_hp_evals': 1,            # HP optimization iterations per period
@@ -83,7 +83,7 @@ def run():
     for hori in [12, 24, 48]:
         CONFIG['horizon'] = hori
         CONFIG['target_col'] = f'target{hori}'
-        CONFIG['output_dir'] = f'walkforward_results_ret_prod_{hori}'
+        CONFIG['output_dir'] = f'walkforward_results_{CONFIG["target_func"]}_5e-3_500_prod_{hori}'
         # Initialize
         wf = WalkForwardTest(
             data_config = DATA_CONFIG,

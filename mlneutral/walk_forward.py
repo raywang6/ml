@@ -21,7 +21,7 @@ from typing import List, Dict, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
-from mlneutral.feature_engineer2 import (
+from mlneutral.feature_engineerP import (
     transformFT,
     feature_selection_2step,
     process_test_data,
@@ -69,6 +69,8 @@ class WalkForwardTest:
 
         if target_func == 'ret':
             self._load_target = self._load_target2
+        elif target_func == 'zscore':
+            self._load_target = self._load_target3
         else:
             self._load_target = self._load_target1
 
@@ -162,6 +164,16 @@ class WalkForwardTest:
         ret = self.returns.loc[:, symbols]
         tar = ret.rolling(self.horizon).sum().shift(-self.horizon)
         tar = tar.clip(-0.5,0.5)#.subtract(tar.median(axis=1),axis=0).clip(-0.5,0.5)
+        tar = pl.from_pandas(
+            tar.reset_index().melt(id_vars="datetime", var_name="symbol", value_name=self.target_col)
+        )
+        return tar
+
+    def _load_target3(self, symbols):
+        ret = self.returns.loc[:, symbols]
+        tar = ret.rolling(self.horizon).sum().shift(-self.horizon)
+        tar = tar.subtract(tar.mean(axis=1), axis=0).div(tar.std(axis=1),axis=0)
+        tar = tar.clip(-5,5)
         tar = pl.from_pandas(
             tar.reset_index().melt(id_vars="datetime", var_name="symbol", value_name=self.target_col)
         )
@@ -282,7 +294,7 @@ class WalkForwardTest:
 
         # Prepare model
         lgbm_model, params = prepare_lgbm()
-        params['learning_rate'] = 5e-3
+        params['learning_rate'] = 1e-2
         params['early_stopping_rounds'] = 50
         #params['num_leaves'] = 64
         #params['subsample'] = 0.8
